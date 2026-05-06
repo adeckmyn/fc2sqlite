@@ -1,0 +1,162 @@
+[ 
+{ "harp_param":"Pmsl",
+  "method":"linear",
+  "grib_id":{ "shortName":"msl", "productDefinitionTemplateNumber":"0"},
+  "fa_id":"MSLPRESSURE",
+  "fa_unit":"Pa"
+},
+
+{ "harp_param":"vis",
+  "method":"linear",
+  "grib_id":{ "shortName":"vis", "productDefinitionTemplateNumber":"8", "typeOfStatisticalProcessing":"min"}
+},
+
+{ "harp_param":"MAXT2m",
+  "method":"linear",
+  "grib_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"8", "typeOfStatisticalProcessing":"max"}
+},
+
+{ "harp_param":"MINT2m",
+  "method":"linear",
+  "grib_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"8", "typeOfStatisticalProcessing":"min"}
+},
+
+{ "harp_param":"T",
+  "method":"linear",
+  "grib_id":{"shortName":"t", "productDefinitionTemplateNumber":"0",
+             "typeOfLevel":"isobaricInhPa"]
+  },
+  "fa_id" : "P?????TEMPERATUR",
+  "fa_unit" : "K",
+  "level": [ 50, 100, 250, 300, 600, 700, 800, 925, 950]
+},
+
+{ "harp_param":"RH",
+  "method":"linear",
+  "grib_id":{"shortName":"r", "productDefinitionTemplateNumber":"0",
+             "typeOfLevel":"isobaricInhPa"
+  },
+  "fa_id" : "P?????HUMI_RELAT",
+  "level": [ 50, 100, 250, 300, 600, 700, 800, 925, 950]
+},
+
+{ "harp_param" : "S",
+  "method" : "linear",
+  "grib_id" : [ {"shortName":"u"}, {"shortName":"v"} ],
+  "grib_id_common":{
+             "productDefinitionTemplateNumber":"0",
+             "typeOfLevel":"isobaricInhPa"
+  },
+  "fa_id" : [ "P?????VENT.MERI", "P?????VENT.ZONA" ],
+  "level": [ 50, 100, 250, 300, 600, 700, 800, 925, 950],
+  "fa_unit":"m/s",
+  "function":"vector_norm"
+},
+
+{ "harp_param" : "D",
+  "method" : "linear",
+  "grib_id" : [ {"shortName":"u"}, {"shortName":"v"} ],
+  "grib_id_common":{
+             "productDefinitionTemplateNumber":"0",
+             "typeOfLevel":"isobaricInhPa"
+  },
+  "fa_id" : [ "P?????VENT.MERI", "P?????VENT.ZONA" ],
+  "level": [ 50, 100, 250, 300, 600, 700, 800, 925, 950],
+  "function":"vector_angle"
+},
+
+{ "harp_param" : "S10m",
+  "method" : "linear",
+  "grib_id" : [ {"shortName":"10u"}, {"shortName":"10v"} ],
+  "grib_id_common":{ "productDefinitionTemplateNumber":"0" },
+  "fa_id" : [ "CLSVENT.MERIDIEN", "CLSVENT.ZONAL" ],
+  "fa_unit":"m/s",
+  "function":"vector_norm"
+},
+
+{ "harp_param" : "D10m",
+  "method" : "linear",
+  "grib_id" : [ {"shortName":"10u"}, {"shortName":"10v"} ],
+  "grib_id_common":{ "productDefinitionTemplateNumber":"0" },
+  "fa_id" : [ "CLSVENT.MERIDIEN", "CLSVENT.ZONAL" ],
+  "function":"vector_angle"
+},
+
+{ "harp_param" : "Gmax",
+  "method" : "linear",
+  "grib_id" : [ {"shortName":"10efg"}, {"shortName":"10nfg"} ],
+  "grib_id_common":{ "productDefinitionTemplateNumber":"8", "typeOfStatisticalProcessing":"max",
+             "typeOfLevel":"heightAboveGround",
+             "level":"10" },
+  "fa_id":[ "CLSU.RAF.MOD.XFU", "CLSV.RAF.MOD.XFU"],
+  "fa_unit":"m/s",
+  "function":"vector_norm"
+},
+
+{ "harp_param":"RH2m",
+  "method":"linear",
+  "grib_id":{ "shortName":"2r", "productDefinitionTemplateNumber":"0"},
+  "fa_id":"CLSHUMI.RELATIVE",
+  "fa_unit" : "pc"
+},
+
+{ "harp_param":"T2m",
+  "method":"linear",
+  "grib_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"0"},
+  "fa_id":"CLSTEMPERATURE",
+  "fa_unit" : "K"
+},
+
+{ "harp_param":"Pcp",
+  "alt":1,
+  "method":"nearest",
+  "grib_id":[ {"parameterNumber":"65"},
+              {"parameterNumber":"66"},
+              {"parameterNumber":"75"}
+  ],
+  "grib_id_common":{ "productDefinitionTemplateNumber":"8",
+             "typeOfStatisticalProcessing":"accum",
+             "parameterCategory":"1"
+  },
+  "fa_id":[ "SURFACCPLUIE", "SURFACCNEIGE", "SURFACCGRAUPEL"],
+  "fa_unit":"kg/m^2",
+  "function":"sum"
+},
+
+{ "harp_param":"Pcp",
+  "alt":2,
+  "method":"nearest",
+  "grib_id":[ {"parameterNumber":"55"},
+              {"parameterNumber":"56"},
+              {"parameterNumber":"76"},
+              {"parameterNumber":"77"}
+  ],
+  "grib_id_common":{ "productDefinitionTemplateNumber":"8",
+             "typeOfStatisticalProcessing":"accum",
+             "parameterCategory":"1"
+  },
+  "fa_id":["SURFPREC.EAU.CON", "SURFPREC.NEI.CON", "SURFPREC.EAU.GEC", "SURFPREC.NEI.GEC"],
+  "function":"sum"
+},
+
+{ "harp_param":"Pcp",
+  "alt":3,
+  "method":"nearest",
+  "grib_id":{"shortName":"tp"},
+  "fa_id":"TOTALPREC",
+  "fa_unit":"kg/m^2"
+},
+
+{ "harp_param":"Q2m",
+  "method":"linear",
+  "grib_id":{ "shortName":"2sh", "productDefinitionTemplateNumber":"0"},
+  "fa_id":"CLSHUMI.SPECIFIQ"
+},
+
+{ "harp_param":"CCtot",
+  "method":"linear",
+  "grib_id":{ "shortName":"tcc" },
+  "fa_id":"SURFNEBUL.TOTALE"
+}
+]
+

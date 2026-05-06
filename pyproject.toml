@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "fc2sqlite"
+version = "0.0.1"
+description = "Extract/interpolate GRIB and FA data to SQLite for verification in harp."
+authors = ["Alex Deckmyn <alex.deckmyn@meteo.be>",
+           "Jure Potocnik ",
+          ]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+eccodes = "*"
+pandas = "*"
+pyproj = "*"
+epygram = "^2.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
