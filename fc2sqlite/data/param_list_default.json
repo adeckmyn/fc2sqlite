@@ -136,6 +136,7 @@
              "parameterCategory":"1"
   },
   "fa_id":["SURFPREC.EAU.CON", "SURFPREC.NEI.CON", "SURFPREC.EAU.GEC", "SURFPREC.NEI.GEC"],
+  "fa_unit":"kg/m^2",
   "function":"sum"
 },
 

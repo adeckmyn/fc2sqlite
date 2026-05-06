@@ -1,0 +1,105 @@
+[
+{
+  "macros":{
+    "$p_levels":[ 50, 100, 250, 300, 600, 700, 800, 925, 950],
+    "$all_hybrid":"1/to/87"
+  }
+},
+
+{ "harp_param":"Pmsl",
+  "method":"linear",
+  "fa_id":"MSLPRESSURE",
+  "fa_units":"Pa"
+},
+
+{ "harp_param":"MAXT2m",
+  "method":"linear",
+  "fa_id":"CLSMAXI.TEMPERAT",
+  "fa_units":"K"
+},
+
+{ "harp_param":"MINT2m",
+  "method":"linear",
+  "fa_id":"CLSMINI.TEMPERAT",
+  "fa_units":"K"
+},
+
+{ "harp_param":"T",
+  "method":"linear",
+  "fa_id" : [ "SURFPRESSION", "S???TEMPERATURE" ],
+  "level": "$all_hybrid",
+  "fa_units" : "K",
+  "level_int": "$p_levels"
+},
+
+{ "harp_param":"RH",
+  "method":"linear",
+  "fa_id" : "P?????HUMI_RELAT",
+  "level": "$p_levels"
+},
+
+{ "harp_param" : "S",
+  "method" : "linear",
+  "fa_id" : [ "P?????VENT.MERI", "P?????VENT.ZONA" ],
+  "level": "$p_levels",
+  "fa_units":"m/s",
+  "function":"vector_norm"
+},
+
+{ "harp_param" : "D",
+  "method" : "linear",
+  "fa_id" : [ "P?????VENT.MERI", "P?????VENT.ZONA" ],
+  "level": "$p_levels",
+  "function":"vector_angle"
+},
+
+{ "harp_param" : "S10m",
+  "method" : "linear",
+  "fa_id" : [ "CLSVENT.MERIDIEN", "CLSVENT.ZONAL" ],
+  "fa_units":"m/s",
+  "function":"vector_norm"
+},
+
+{ "harp_param" : "D10m",
+  "method" : "linear",
+  "fa_id" : [ "CLSVENT.MERIDIEN", "CLSVENT.ZONAL" ],
+  "function":"vector_angle"
+},
+
+{ "harp_param" : "Gmax",
+  "method" : "linear",
+  "fa_id":[ "CLSU.RAF.MOD.XFU", "CLSV.RAF.MOD.XFU"],
+  "fa_units":"m/s",
+  "function":"vector_norm"
+},
+
+{ "harp_param":"RH2m",
+  "method":"linear",
+  "fa_id":"CLSHUMI.RELATIVE",
+  "fa_units" : "pc"
+},
+
+{ "harp_param":"T2m",
+  "method":"linear",
+  "fa_id":"CLSTEMPERATURE",
+  "fa_units" : "K"
+},
+
+{ "harp_param":"Pcp",
+  "method":"nearest",
+  "fa_id":[ "SURFACCPLUIE", "SURFACCNEIGE", "SURFACCGRAUPEL"],
+  "fa_unit":"kg/m^2",
+  "functions":"sum"
+},
+
+{ "harp_param":"Q2m",
+  "method":"linear",
+  "fa_id":"CLSHUMI.SPECIFIQ"
+},
+
+{ "harp_param":"CCtot",
+  "method":"linear",
+  "fa_id":"SURFNEBUL.TOTALE"
+}
+]
+

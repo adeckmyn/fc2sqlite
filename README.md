@@ -69,12 +69,12 @@ Examples:
 [
 { "harp_param":"T2m",
   "method":"bilin",
-  "grib\_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"0"},
-  "fa\_id":{"name":"CLSTEMPERATURE"}
+  "grib_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"0"},
+  "fa_id":{"name":"CLSTEMPERATURE"}
 },
 { "harp_param":"MAXT2m",
   "method":"bilin",
-  "grib\_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"8", "typeOfStatisticalProcessing":"max"}
+  "grib_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"8", "typeOfStatisticalProcessing":"max"}
 },
 ]
 ```
@@ -104,7 +104,7 @@ For this, **grib_id** can contain the different fields in a list (**NOTE:** in t
 - **common**: the GRIB keys that the various fields should have in common, like pressure level etc.
 - **function**: the method to combine the various fields. Currently, the possibilities are 
     - **vector_norm** (wind speed),
-    - **vector_angle** (wind direction),
+    - **vector\_angle** (wind direction),
     - **sum** (precipitation sub-types).  
 
 Future additions may include elevation-correction for T2m, dew point temperature (Magnus formula), ...
