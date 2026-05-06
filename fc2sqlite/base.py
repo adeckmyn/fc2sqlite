@@ -68,16 +68,16 @@ def read_param_list(param_file = None):
     except OSError:
         logger.error("Can not read parameter file %s", param_file)
         raise
-    if "macros" in parameter_list:
+    
+    if "macros" in parameter_list[0]:
         # TODO: this is concept code, I'm sure it can be improved.
         logger.info("Resolving macros in parameter list.")
-        macros = parameter_list['macros']
-        parameter_list.pop('macros')
+        macros = parameter_list.pop(0)['macros']
         for param in parameter_list:
             for mac in macros.keys():
                 for key in param.keys():
                     if param[key] == mac:
-                        param[key = macros[mac]
+                        param[key] = macros[mac]
     return parameter_list
 
 
