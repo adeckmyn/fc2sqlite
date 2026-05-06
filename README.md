@@ -3,18 +3,17 @@
 Interpolate grib & fa files to sqlite tables for the harp verification tool.
 
 2024 - 2026
-alex.deckmyn@meteo.be
-jure.potocnik.ext@gov.si
-and others
 
 Can be called via command line or used as a module.
+
+
 
 ## Command line
 
     python3 -m fc2sqlite <options> <grib file(s)>
 
-usage: fc2sqlite [-h] [-p param_file] [-s station_file] [-m model_name]
-                   [-t output_template] [-o output_path] [-d debug_level]
+usage: fc2sqlite [-h] [-p param\_file] [-s station\_file] [-m model_name]
+                   [-t output\_template] [-o output\_path] [-d debug\_level]
                    /path/to/file(s) [/path/to/file(s) ...]
 
 ### positional arguments:
@@ -25,12 +24,12 @@ usage: fc2sqlite [-h] [-p param_file] [-s station_file] [-m model_name]
 ### options:
 
 *  -h, --help          show help message and exit
-*  -p <param_file>       parameter list file (json)
-*  -s <station_file>     station list file (csv)
-*  -m <model_name>       model name used in SQLite (usually <*>_det)
-*  -t <output_template>  template used for SQLite files
-*  -o <output_path>      path used for SQLite files
-*  -d <debug_level>      verbosity level (0...3) default: 1
+*  -p <param\_file>       parameter list file (json)
+*  -s <station\_file>     station list file (csv)
+*  -m <model\_name>       model name used in SQLite (usually <*>_det)
+*  -t <output\_template>  template used for SQLite files
+*  -o <output\_path>      path used for SQLite files
+*  -d <debug\_level>      verbosity level (0...3) default: 1
 
 Option `-d0` surpresses all messages except errors, `-d1` adds warnings, and so on up to `-d3` that will output a large amount of debugging information.
 
@@ -59,10 +58,10 @@ The parameters are prescribed in a .json file. There is a default file that show
 
 Basic variables that can be read from a single GRIB record, can be described by a dict with the following three or four elements (either grib_id or fa_id is enough, but both is fine as well).
 
-* **harp_param**: the "harp" name for the variable
+* **harp\_param**: the "harp" name for the variable
 * **method**: interpolation method (bilin or nearest)
-* **grib_id**: a list of key values that uniquely define the GRIB record.
-* **fa_id**: usually just contains the name of the FA field
+* **grib\_id**: a list of key values that uniquely define the GRIB record.
+* **fa\_id**: usually just contains the name of the FA field
 
 Examples:
 
@@ -70,12 +69,12 @@ Examples:
 [
 { "harp_param":"T2m",
   "method":"bilin",
-  "grib_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"0"},
-  "fa_id":{"name":"CLSTEMPERATURE"}
+  "grib\_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"0"},
+  "fa\_id":{"name":"CLSTEMPERATURE"}
 },
 { "harp_param":"MAXT2m",
   "method":"bilin",
-  "grib_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"8", "typeOfStatisticalProcessing":"max"}
+  "grib\_id":{ "shortName":"2t", "productDefinitionTemplateNumber":"8", "typeOfStatisticalProcessing":"max"}
 },
 ]
 ```
