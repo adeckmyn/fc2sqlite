@@ -90,7 +90,7 @@ for file_glob in infile:
             logger.warning(f"Input file not found: {file_name}")
             continue
         ftype = get_file_type(file_name)
-        logger.debug(f"File type: {ftype}")
+        logger.info(f"File type: {ftype}")
         if ftype == "GRIB":
             gt, gi = parse_grib_file(
                 infile = file_name,

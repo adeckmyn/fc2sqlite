@@ -2,47 +2,56 @@
 {
   "macros":{
     "$p_levels":[ 50, 100, 250, 300, 600, 700, 800, 925, 950],
-    "$all_hybrid":"1/to/87"
+    "$all_hybrid":[ 1,2,3,4,5,6,7,8,9,10,
+      11,12,13,14,15,16,17,18,19,20,
+      21,22,23,24,25,26,27,28,29,30,
+      31,32,33,34,35,36,37,38,39,40,
+      41,42,43,44,45,46,47,48,49,50,
+      51,52,53,54,55,56,57,58,59,60,
+      61,62,63,64,65,66,67,68,69,70,
+      71,72,73,74,75,76,77,78,79,80,
+      81,82,83,84,85,86,87]
   }
 },
 
 { "harp_param":"Pmsl",
   "method":"linear",
   "fa_id":"MSLPRESSURE",
-  "fa_units":"Pa"
+  "units":"Pa"
 },
 
 { "harp_param":"MAXT2m",
   "method":"linear",
   "fa_id":"CLSMAXI.TEMPERAT",
-  "fa_units":"K"
+  "units":"K"
 },
 
 { "harp_param":"MINT2m",
   "method":"linear",
   "fa_id":"CLSMINI.TEMPERAT",
-  "fa_units":"K"
+  "units":"K"
 },
 
 { "harp_param":"T",
   "method":"linear",
   "fa_id" : [ "SURFPRESSION", "S???TEMPERATURE" ],
   "level": "$all_hybrid",
-  "fa_units" : "K",
+  "units" : "K",
   "level_int": "$p_levels"
 },
 
 { "harp_param":"RH",
   "method":"linear",
   "fa_id" : "P?????HUMI_RELAT",
-  "level": "$p_levels"
+  "level": "$p_levels",
+  "units":"fraction"
 },
 
 { "harp_param" : "S",
   "method" : "linear",
   "fa_id" : [ "P?????VENT.MERI", "P?????VENT.ZONA" ],
   "level": "$p_levels",
-  "fa_units":"m/s",
+  "units":"m/s",
   "function":"vector_norm"
 },
 
@@ -56,7 +65,7 @@
 { "harp_param" : "S10m",
   "method" : "linear",
   "fa_id" : [ "CLSVENT.MERIDIEN", "CLSVENT.ZONAL" ],
-  "fa_units":"m/s",
+  "units":"m/s",
   "function":"vector_norm"
 },
 
@@ -69,37 +78,47 @@
 { "harp_param" : "Gmax",
   "method" : "linear",
   "fa_id":[ "CLSU.RAF.MOD.XFU", "CLSV.RAF.MOD.XFU"],
-  "fa_units":"m/s",
+  "units":"m/s",
   "function":"vector_norm"
 },
 
 { "harp_param":"RH2m",
   "method":"linear",
   "fa_id":"CLSHUMI.RELATIVE",
-  "fa_units" : "pc"
+  "units" : "pc"
 },
 
 { "harp_param":"T2m",
   "method":"linear",
   "fa_id":"CLSTEMPERATURE",
-  "fa_units" : "K"
+  "units" : "K"
 },
 
 { "harp_param":"Pcp",
   "method":"nearest",
   "fa_id":[ "SURFACCPLUIE", "SURFACCNEIGE", "SURFACCGRAUPEL"],
-  "fa_unit":"kg/m^2",
-  "functions":"sum"
+  "units":"kg/m^2",
+  "function":"sum"
 },
 
 { "harp_param":"Q2m",
   "method":"linear",
-  "fa_id":"CLSHUMI.SPECIFIQ"
+  "fa_id":"CLSHUMI.SPECIFIQ",
+  "units":"FIXME"
 },
+
+{ "harp_param":"Td2m",
+  "method":"linear",
+  "fa_id":["CLSHUMI.SPECIFIQ", "CLSTEMPERATURE"],
+  "units":"K",
+  "function":"Q_to_Td"
+},
+
 
 { "harp_param":"CCtot",
   "method":"linear",
-  "fa_id":"SURFNEBUL.TOTALE"
+  "fa_id":"SURFNEBUL.TOTALE",
+  "units":"fraction"
 }
 ]
 
