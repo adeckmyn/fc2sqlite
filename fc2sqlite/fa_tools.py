@@ -26,6 +26,11 @@ def fa_fix_level(fa_name, fa_level):
     result = fa_name.replace("?"*lev_len, f"{fa_level:0{lev_len}}")
     return(result)
 
+def fa_expand_3d_names(fa_names, nlev):
+    fixed_fields = [ x for x in fa_names if x.find("?") == -1 ]
+    level_fields = [ x for x in fa_names if x.find("?") > -1 ]
+    result = fixed_fields + [ fa_fix_level(x, l) for l in range(1,nlev+1) for x in level_fields ]
+    return result
 
 def points_restrict_fa(fafile, plist):
     # Keep only stations inside the resource domain
@@ -72,6 +77,7 @@ def get_geo_fa(fafile):
 #        if abs(360 - result["dx"] * result["nlon"]) < result["dx"]:
 #            result["wrap_x"] = True
     result['proj4'] = get_proj4_fa(fafile)
+    result['uvRelativeToGrid'] = 1
 
     return result
 

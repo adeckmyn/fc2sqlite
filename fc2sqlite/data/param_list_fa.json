@@ -35,9 +35,9 @@
 { "harp_param":"T",
   "method":"linear",
   "fa_id" : [ "SURFPRESSION", "S???TEMPERATURE" ],
-  "level": "$all_hybrid",
+  "level": "$p_levels",
   "units" : "K",
-  "level_int": "$p_levels"
+  "function":"hybrid_to_p"
 },
 
 { "harp_param":"RH",
@@ -109,9 +109,9 @@
 
 { "harp_param":"Td2m",
   "method":"linear",
-  "fa_id":["CLSHUMI.SPECIFIQ", "CLSTEMPERATURE"],
+  "fa_id":["SURFPRESSION", "CLSHUMI.SPECIFIQ", "CLSTEMPERATURE"],
   "units":"K",
-  "function":"Q_to_Td"
+  "function":"PQT_to_Td"
 },
 
 

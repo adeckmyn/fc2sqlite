@@ -20,7 +20,7 @@ eps = R_d / R_w
 # PHYSICS
 #####################################
 
-def param_apply_function(param):
+def param_apply_function(param, station_list):
     nfields = len(param["data"])
     parname = param["harp_param"]
 
@@ -32,13 +32,13 @@ def param_apply_function(param):
         v = param["data"][1]
         direction_to = np.degrees(np.arctan2(u, v))
         direction_from = (direction_to + 180) % 360
-        if param["gridinfo"]["uvRelativeToGrid"] == 1:
+        if param["geo"]["uvRelativeToGrid"] == 1:
         # FIXME: wind may need to be rotated first !!!
         #        also FA syntax!
             lat = np.array(station_list["lat"].tolist())
             lon = np.array(station_list["lon"].tolist())
             logger.debug("Correcting wind angle.")
-            angle, mapfactor = rotate_wind(lon, lat, param["proj4"])
+            angle, mapfactor = rotate_wind(lon, lat, param["geo"]["proj4"])
             direction_from = direction_from + angle
 
         return direction_from
@@ -65,13 +65,18 @@ def param_apply_function(param):
         T = param["data"][2]
         return Q_to_RH(P, Q, T)
 
-    elif param['function'] == "Q_to_Td":
+    elif param['function'] == "PQT_to_Td":
         if nfields != 3:
             logger.error("ERROR: Td from Q,T needs exactly 3 components.")
         P = param["data"][0]
         Q = param["data"][1]
         T = param["data"][2]
-        return Q_to_Td(P, Q, T)
+        return PQT_to_Td(P, Q, T)
+
+    elif param['function'] == "hybrid_to_p":
+        # TODO
+        logger.warning("3D interpolation is not yet implemented")
+        return None
 
     else:
         logger.error("Unknown function %s.", param['function'])
@@ -88,21 +93,21 @@ def Q_to_RH(P, Q, T):
     RH = e / es
     return RH
 
-def Q_to_Td(P, Q, T):
+def PQT_to_Td(P, Q, T):
     # Returns dew point temperature Td (K).
     # Inputs: pressure p (hPa), specific humidity Q (kg/kg), temperature T (K).
     # Computes relative humidity first, then applies Clausius–Clapeyron approximation.
     RH = Q_to_RH(P, Q, T)
     return RH_to_Td(RH, T)
 
-def Td_to_RH(T, Td):
+def TTd_to_RH(T, Td):
     # Returns relative humidity (fraction, 0–1).
     # Inputs: temperature T (K), dew point temperature Td (K).
     # Computed using Clausius–Clapeyron relation assuming constant latent heat.
     RH = np.exp((h_i/R_w) * (1/T - 1/Td))
     return RH
 
-def Td_to_Q(p, T, Td):
+def PTTd_to_Q(P, T, Td):
     # Returns specific humidity q (kg/kg).
     # Inputs: pressure p (hPa), temperature T (K), dew point temperature Td (K).
     # Relative humidity is computed using Clausius–Clapeyron approximation,
@@ -118,7 +123,7 @@ def Td_to_Q(p, T, Td):
 
     e = RH * es
 
-    q = (eps * e) / (p - (1 - eps) * e)
+    q = (eps * e) / (P - (1 - eps) * e)
 
     return q
 

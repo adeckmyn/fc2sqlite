@@ -148,10 +148,10 @@ def combine_fields(param, station_list):
     logger.debug("COMBINING %i fields for %s", nfields, parname)
 
     npoints = len(param["data"][0])
-    result = param_apply_function(param)
+    result = param_apply_function(param, station_list)
 
 
-def parse_parameter_list(param_list, type="GRIB"):
+def parse_parameter_list_grib(param_list):
     """Parse a (json) structure of required parameters.
 
     Handle single vs combined fields, model levels etc.
@@ -167,133 +167,165 @@ def parse_parameter_list(param_list, type="GRIB"):
     #       netcdf...
     param_sgl_list = []
     param_cmb_list = []
-    if type == "GRIB":
-        for param in param_list:
-            if isinstance(param["grib_id"], dict):
-                # a single field is decoded for this parameter
-                if "level" in param["grib_id"] and isinstance(
-                    param["grib_id"]["level"], list
-                ):
-                    # expand to multiple fields
-                    for lev in param["grib_id"]["level"]:
-                        pid = deepcopy(param)
-                        pid["grib_id"]["level"] = str(lev)
-                        param_sgl_list.append(pid)
-                else:
+    for param in param_list:
+        if isinstance(param["grib_id"], dict):
+            # a single field is decoded for this parameter
+            if "level" in param["grib_id"] and isinstance(
+                param["grib_id"]["level"], list
+            ):
+                # expand to multiple fields
+                for lev in param["grib_id"]["level"]:
                     pid = deepcopy(param)
-                    # single field parameters are not cached for now
-                    # so "data" entry is not needed
+                    pid["grib_id"]["level"] = str(lev)
                     param_sgl_list.append(pid)
-
             else:
-                # the parameter requires multiple fields
-                # so we will have to cache the data and calculate later
-                # for e.g. wind fields we must also cache grid and projection settings
-                nfields = len(param["grib_id"])
-                if "grib_id_common" not in param:
-                    # the most simple combine case: no common keys
-                    pid = deepcopy(param)
-                    pid["data"] = [None] * nfields
-                    pid["geo"] = None
-                    param_cmb_list.append(pid)
+                pid = deepcopy(param)
+                # single field parameters are not cached for now
+                # so "data" entry is not needed
+                param_sgl_list.append(pid)
 
-                elif "level" in param["grib_id_common"] and isinstance(
-                    param["grib_id_common"]["level"], list
-                ):
-                    # there is a common level key, so multiple entries
-                    for lev in param["grib_id_common"]["level"]:
-                        pid = deepcopy(param)
-                        pid["grib_id_common"]["level"] = str(lev)
-                        for f in range(len(pid["grib_id"])):
-                            pid["grib_id"][f].update(pid["grib_id_common"])
-                        pid.pop("grib_id_common")
-                        pid["data"] = [None] * nfields
-                        pid["geo"] = None
-                        pid["level"] = lev
-                        param_cmb_list.append(pid)
+        else:
+            # the parameter requires multiple fields
+            # so we will have to cache the data and calculate later
+            # for e.g. wind fields we must also cache grid and projection settings
+            nfields = len(param["grib_id"])
+            if "grib_id_common" not in param:
+                # the most simple combine case: no common keys
+                pid = deepcopy(param)
+                pid["data"] = [None] * nfields
+                pid["geo"] = None
+                param_cmb_list.append(pid)
 
-                else:
-                    # there are common keys, but no level expansion
+            elif "level" in param["grib_id_common"] and isinstance(
+                param["grib_id_common"]["level"], list
+            ):
+                # there is a common level key, so multiple entries
+                for lev in param["grib_id_common"]["level"]:
                     pid = deepcopy(param)
+                    pid["grib_id_common"]["level"] = str(lev)
                     for f in range(len(pid["grib_id"])):
                         pid["grib_id"][f].update(pid["grib_id_common"])
                     pid.pop("grib_id_common")
                     pid["data"] = [None] * nfields
                     pid["geo"] = None
+                    pid["level"] = lev
                     param_cmb_list.append(pid)
 
-    elif type == "FA":
-        for param in param_list:
-            if isinstance(param["fa_id"], str):
-                # a single field is decoded for this parameter
-                # but possibly multiple levels
-                if "level" in param and isinstance(param["level"], list):
-                    # expand to multiple fields
-                    if param["fa_id"][0] == "P":
-                        param['level_name'] = "p"
-                    elif param["fa_id"][0] == "S":
-                        param['level_name'] = "ml"
-                    elif param["fa_id"][0] == "H":
-                        param['level_name'] = "z"
-                    else:
-                        # NOTE: only p, z, ml are important
-                        param['level_name'] = None
+            else:
+                # there are common keys, but no level expansion
+                pid = deepcopy(param)
+                for f in range(len(pid["grib_id"])):
+                    pid["grib_id"][f].update(pid["grib_id_common"])
+                pid.pop("grib_id_common")
+                pid["data"] = [None] * nfields
+                pid["geo"] = None
+                param_cmb_list.append(pid)
+    return param_sgl_list, param_cmb_list
 
-                    for lev in param["level"]:
-                        pid = deepcopy(param)
-                        pid["fa_id"] = fa_fix_level(param["fa_id"], lev)
-                        param_sgl_list.append(pid)
+def parse_parameter_list_fa(param_list, nlev):
+    """Parse a (json) structure of required parameters.
+
+    Handle single vs combined fields, model levels etc.
+
+    Args:
+        param_list: the list pf paramers (from json file)
+
+    Returns:
+        param_id_list: the complete list of fields that should be decoded
+        param_combine: details for combined fields
+    """
+    # TODO: make it as type-agnostic as possible?
+    #       netcdf...
+    param_sgl_list = []
+    param_cmb_list = []
+
+    for param in param_list:
+        if isinstance(param["fa_id"], str):
+            # a single field is decoded for this parameter
+            # but possibly multiple levels
+            if "level" in param and isinstance(param["level"], list):
+                # expand to multiple fields
+                if param["fa_id"][0] == "P":
+                    param['level_name'] = "p"
+                elif param["fa_id"][0] == "S":
+                    param['level_name'] = "ml"
+                elif param["fa_id"][0] == "H":
+                    param['level_name'] = "z"
                 else:
-                    if "level" not in param:
-                        param['level'] = None
-                    if "level_name" not in param:
-                        param['level_name'] = None
+                    # NOTE: only p, z, ml are important
+                    param['level_name'] = None
+
+                for lev in param["level"]:
                     pid = deepcopy(param)
-                    # single field parameters are not cached for now
-                    # so "data" entry is not needed
+                    pid["fa_id"] = fa_fix_level(param["fa_id"], lev)
                     param_sgl_list.append(pid)
             else:
-                # the parameter requires multiple fields
-                # so we will have to cache the data and calculate later
-                # for e.g. wind fields we must also cache grid and projection settings
-                nfields = len(param["fa_id"])
                 if "level" not in param:
-                    # the most simple combine case: no multiple levels
                     param['level'] = None
-                    if "level_name" not in param:
-                        param['level_name'] = None
+                if "level_name" not in param:
+                    param['level_name'] = None
+                pid = deepcopy(param)
+                # single field parameters are not cached for now
+                # so "data" entry is not needed
+                param_sgl_list.append(pid)
+        else:
+            # the parameter requires multiple fields
+            # so we will have to cache the data and calculate later
+            # for e.g. wind fields we must also cache grid and projection settings
+            nfields = len(param["fa_id"])
+            if "level" not in param:
+                # the most simple combine case: no multiple levels
+                param['level'] = None
+                if "level_name" not in param:
+                    param['level_name'] = None
+                pid = deepcopy(param)
+                pid["data"] = [None] * nfields
+                pid["geo"] = None
+                param_cmb_list.append(pid)
+
+            elif param['function'] == "hybrid_to_p":
+                # Special case: all the "levels" are to be combined and interpolated vertically
+                # TODO: something better than caching all hybrid levels for every pressure...
+                # FIXME: we need to know the number of model levels!
+                param['fa_id'] = fa_expand_3d_names( param['fa_id'], nlev)
+                nfields = len(param['fa_id'])
+                pid = deepcopy(param)
+                pid["data"] = [None] * nfields
+                pid["geo"] = None
+                param_cmb_list.append(pid)
+
+
+            else:
+                # there is a common level key, so multiple entries
+                # NOTE: to guess the level type (pressure, ...)
+                #       we should look at the field names
+                #       We look for the first field name with "?" in it
+                lev_field = [ x for x  in param['fa_id'] if "?" in x ][0]
+                if lev_field[0] == "P":
+                    param['level_name'] = "p"
+                elif lev_field[0] == "S":
+                    param['level_name'] = "ml"
+                elif lev_field[0] == "H":
+                    param['level_name'] = "z"
+                else:
+                    # NOTE: only p, z, ml are important
+                    param['level_name'] = None
+
+                if not isinstance(param["level"], list):
+                    param["level"] = [ param["level"] ]
+
+                for lev in param["level"]:
+                    # FIXME: this fails if the field list also includes non-level fields like pressure
+                    # basically, this is not a good approach for 3D fields (vertical interpolation)
                     pid = deepcopy(param)
+                    for f in range(nfields):
+                        pid["fa_id"][f] = fa_fix_level(pid["fa_id"][f], lev)
                     pid["data"] = [None] * nfields
                     pid["geo"] = None
+                    pid["level"] = lev
+                    logger.debug("COMBI LEVEL")
+                    logger.debug(pid)
                     param_cmb_list.append(pid)
-
-                else:
-                    # there is a common level key, so multiple entries
-                    # NOTE: to guess the level type (pressure, ...)
-                    #       we should look at the field names
-                    #       We look for the first field name with "?" in it
-                    lev_field = [ x for x  in param['fa_id'] if "?" in x ][0]
-                    if lev_field[0] == "P":
-                        param['level_name'] = "p"
-                    elif lev_field[0] == "S":
-                        param['level_name'] = "ml"
-                    elif lev_field[0] == "H":
-                        param['level_name'] = "z"
-                    else:
-                        # NOTE: only p, z, ml are important
-                        param['level_name'] = None
-
-                    if not isinstance(param["level"], list):
-                        param["level"] = [ param["level"] ]
-
-                    for lev in param["level"]:
-                        pid = deepcopy(param)
-                        for f in range(len(pid["fa_id"])):
-                            pid["fa_id"][f] = fa_fix_level(pid["fa_id"][f], lev)
-                        pid["data"] = [None] * nfields
-                        pid["geo"] = None
-                        pid["level"] = lev
-                        param_cmb_list.append(pid)
 
     return param_sgl_list, param_cmb_list
 
@@ -333,7 +365,7 @@ def cache_field(param, data, param_cmb_list, geo):
     logger.debug("Found %i matching combined parameters.", count)
     return count
 
-def cache_field_fa(param, data, param_cmb_list, geo):
+def cache_field_fa(pname, data, param_cmb_list, geo):
     """Check if a decoded field needs to be cached for later parameters.
 
     Args:
@@ -350,18 +382,24 @@ def cache_field_fa(param, data, param_cmb_list, geo):
     count = 0
     for cmb in param_cmb_list:
         nfields = len(cmb["fa_id"])
+        logger.debug("CACHE CALL")
+        logger.debug(pname)
+        logger.debug(cmb["fa_id"])
         for ff in range(nfields):
-            if cmb["fa_id"][ff] == param["fa_id"]:
+            if cmb["fa_id"][ff] == pname:
                 logger.debug("Caching output for %s", cmb["harp_param"])
                 cmb["data"][ff] = np.array(data)
+                if cmb["geo"] is None:
+                    cmb['geo'] = geo
                 # FIXME: we assume the unit is the same for all constituents and result
                 #        this is NOT the case for e.g. wind direction
                 #        probably should be fixed in the final combination function
-                cmb["units"] = param["units"]
-                cmb["level"] = param["level"]
-                cmb["level_name"] = param["level_name"]
-                if cmb["geo"] is None:
-                    cmb["geo"] = geo
+                # FIXME: these have to be done when creating the cache!
+                #cmb["units"] = param["units"]
+                #cmb["level"] = param["level"]
+                #cmb["level_name"] = param["level_name"]
+                #if cmb["geo"] is None:
+                #    cmb["geo"] = geo
                 count += 1
                 continue
     logger.debug("Found %i matching combined parameters.", count)
@@ -393,7 +431,7 @@ def parse_grib_file(
     param_list = read_param_list(param_list)
 
     # split into "combined" and "direct" parameters
-    param_sgl_list, param_cmb_list = parse_parameter_list(param_list)
+    param_sgl_list, param_cmb_list = parse_parameter_list_grib(param_list)
     param_cmb_cache = [None] * len(param_cmb_list)
     if len(param_cmb_list) > 0:
         for pp in range(len(param_cmb_cache)):
@@ -564,18 +602,6 @@ def parse_fa_file(
     if isinstance(param_list, str):
         param_list = read_param_list(param_list)
 
-    # split into "combined" and "direct" parameters
-    param_sgl_list, param_cmb_list = parse_parameter_list(param_list, "FA")
-    param_cmb_cache = [None] * len(param_cmb_list)
-    if len(param_cmb_list) > 0:
-        for pp in range(len(param_cmb_cache)):
-            param_cmb_cache[pp] = {}
-
-    logger.info(
-        "SQLITE: expecting %i single and %i combined parameters.",
-        len(param_sgl_list),
-        len(param_cmb_list),
-    )
 
     gi = 0
     gd = 0
@@ -583,6 +609,20 @@ def parse_fa_file(
     error_occured = False
 
     with epygram.open(infile, "r") as fafile:
+        # split into "combined" and "direct" parameters
+        # FIXME: I need to open the FA file to read NLEV !!!
+        nlev = len(fafile.geometry.vcoordinate.levels)
+        param_sgl_list, param_cmb_list = parse_parameter_list_fa(param_list, nlev)
+        param_cmb_cache = [None] * len(param_cmb_list)
+        if len(param_cmb_list) > 0:
+            for pp in range(len(param_cmb_cache)):
+                param_cmb_cache[pp] = {}
+
+        logger.info(
+            "SQLITE: expecting %i single and %i combined parameters.",
+            len(param_sgl_list),
+            len(param_cmb_list),
+        )
         # WARNING: epygram returns field names without trailing blanks!
         field_list = fafile.listfields()
         gt = len(field_list)
@@ -660,8 +700,9 @@ def parse_fa_file(
 
             # if the field also occurs in combined fields (can be more than one!), put in cache
             for param in cmb_list:
+                # BUG: param has the list fa_id names!
                 gc += 1
-                cache_field_fa(param, data_vector, param_cmb_list, geo)
+                cache_field_fa(pname, data_vector, param_cmb_list, geo)
 
     for param in param_cmb_list:
         data_vector = combine_fields(param, station_list)
