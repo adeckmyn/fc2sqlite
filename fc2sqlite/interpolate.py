@@ -3,6 +3,7 @@ import numpy as np
 from pyproj import Proj
 
 from .logger import logger
+from .grib_tools import *
 
 
 def get_grid_limits(geo):
@@ -61,7 +62,7 @@ def points_restrict(geo, plist):
     #        the 0 meridian is pretty important, so we need to fix this
     # NOTE: minlon, maxlon are always according to [-180,180],
     #       even if the grid itself is [0,360] !!!
-    if gridinfo["wrap_x"]:
+    if "wrap_x" in geo and geo["wrap_x"]:
         p1 = plist[(plist["lat"] >= minlat) & (plist["lat"] <= maxlat)].copy()
     else:
         p1 = plist[
@@ -79,7 +80,7 @@ def points_restrict(geo, plist):
     lat = p1["lat"].tolist()
 
     i, j = get_gridindex(lon, lat, geo)
-    if gridinfo["wrap_x"]:
+    if "wrap_x" in geo and geo["wrap_x"]:
         # if x wraps around the globe, don't restrict at all
         # BUT: make sure to take this into account when interpolating!
         # NOTE: Amundsen-Scott SP base has j==0 !
@@ -280,39 +281,5 @@ def interp_from_weights(field_data, weights, method):
 
     interp = [sum([field_data[x[0][0], x[0][1]] * x[1] for x in w]) for w in weights[method]]
     return interp
-
-
-def get_grid_values(gid):
-    """Decode a GRIB2 field.
-
-    Args:
-      gid: A grib handle
-
-    Returns:
-      Numpy array of decoded field.
-    """
-    gkeys = [
-        "Nx",
-        "Ny",
-        "iScansNegatively",
-        "jScansPositively",
-        "jPointsAreConsecutive",
-        "alternativeRowScanning",
-    ]
-    ginfo = get_keylist(gid, gkeys, "long")
-    nx = ginfo["Nx"]
-    ny = ginfo["Ny"]
-
-    # data given by column (C) or by row (Fortran)?
-    order = "C" if ginfo["jPointsAreConsecutive"] else "F"
-    data = eccodes.codes_get_values(gid).reshape(nx, ny, order=order)
-    if ginfo["iScansNegatively"]:
-        # logger.warning("Untested data ordering iScansNegatively=1")
-        data[range(nx), :] = data[range(nx)[::-1], :]
-    if not ginfo["jScansPositively"]:
-        # logger.warning("Untested data ordering jScansPositively=0")
-        data[:, range(ny)] = data[:, range(ny)[::-1]]
-
-    return data
 
 

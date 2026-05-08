@@ -68,6 +68,8 @@ def get_geo_fa(fafile):
         "maxlat":fafile.geometry.minmax_ll('CI')['latmax'],
         "minlon":fafile.geometry.minmax_ll('CI')['lonmin'],
         "maxlon":fafile.geometry.minmax_ll('CI')['lonmax'],
+        # FIXME
+        "rotate_wind":True,
         "wrap_x": False,
     }
 #    if gridtype in ["regular_ll", "rotated_ll"]:
@@ -77,7 +79,6 @@ def get_geo_fa(fafile):
 #        if abs(360 - result["dx"] * result["nlon"]) < result["dx"]:
 #            result["wrap_x"] = True
     result['proj4'] = get_proj4_fa(fafile)
-    result['uvRelativeToGrid'] = 1
 
     return result
 

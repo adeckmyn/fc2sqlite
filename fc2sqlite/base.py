@@ -149,6 +149,7 @@ def combine_fields(param, station_list):
 
     npoints = len(param["data"][0])
     result = param_apply_function(param, station_list)
+    return result
 
 
 def parse_parameter_list_grib(param_list):
@@ -345,7 +346,6 @@ def cache_field(param, data, param_cmb_list, geo):
       so may be matched twice.
     """
     count = 0
-    gridinfo_list = ["uvRelativeToGrid"]
     for cmb in param_cmb_list:
         nfields = len(cmb["grib_id"])
         for ff in range(nfields):
@@ -382,9 +382,6 @@ def cache_field_fa(pname, data, param_cmb_list, geo):
     count = 0
     for cmb in param_cmb_list:
         nfields = len(cmb["fa_id"])
-        logger.debug("CACHE CALL")
-        logger.debug(pname)
-        logger.debug(cmb["fa_id"])
         for ff in range(nfields):
             if cmb["fa_id"][ff] == pname:
                 logger.debug("Caching output for %s", cmb["harp_param"])
@@ -474,7 +471,7 @@ def parse_grib_file(
                 direct = False
                 gc += 1
                 logger.debug(
-                    "SQLITE: found combinded parameter %s:%s",
+                    "SQLITE: found combined parameter %s:%s",
                     param["harp_param"],
                     param["grib_id"],
                 )
@@ -517,7 +514,8 @@ def parse_grib_file(
                 weights = train_weights(station_list, geo, lsm=False)
 
             # by default, we do bilinear interpolation
-            method = param["method"] if "method" in param else "linear"
+            method = "linear" if "method" not in param or param['method']=="bilin" else param["method"]
+            
             # add columns to data table
             field_data = get_grid_values(gid)
             data_vector = interp_from_weights(field_data, weights, method)
@@ -610,7 +608,8 @@ def parse_fa_file(
 
     with epygram.open(infile, "r") as fafile:
         # split into "combined" and "direct" parameters
-        # FIXME: I need to open the FA file to read NLEV !!!
+        # FIXME: I need to open the FA file before parsing the parameters,
+        #        because 3d interpolation needs knowledge of NLEV before building cache.
         nlev = len(fafile.geometry.vcoordinate.levels)
         param_sgl_list, param_cmb_list = parse_parameter_list_fa(param_list, nlev)
         param_cmb_cache = [None] * len(param_cmb_list)
@@ -643,11 +642,17 @@ def parse_fa_file(
             error_occured = True
             #fafile.close()
             return(gt,gi)
+        logger.info(
+                    "SQLITE: selected %i stations inside domain from %i.",
+                    station_list.shape[0],
+                    nstation_orig,
+                )
 
     # TODO: actually should loop over the union of single fields and combined
         param_sgl_names = set([ p['fa_id'] for p in param_sgl_list])
         param_cmb_names = set([ x for p in param_cmb_list for x in p['fa_id']])
         all_names = set.union(param_sgl_names, param_cmb_names)
+        weights = None
 
         for pname in all_names:
             if pname in field_list:
@@ -674,10 +679,17 @@ def parse_fa_file(
                 field_data.sp2gp()
 
             # add columns to data table
+            # NOTE: interpolation via both methods is comparable in speed
+
             data_vector = field_data.getvalue_ll(
-                lon=station_list["lon"],
-                lat=station_list["lat"],
-                interpolation=method)
+                    lon=station_list["lon"],
+                    lat=station_list["lat"],
+                    interpolation=method)
+            #if weights is None:
+            #        geo = get_geo_fa(fafile)
+            #        #station_list = points_restrict(geo, station_list)
+            #        weights = train_weights(station_list, geo, lsm=False)
+            #data_vector = interp_from_weights(field_data.data, weights, method)
 
             for param in sgl_list:
                 gd += 1
@@ -701,6 +713,8 @@ def parse_fa_file(
             # if the field also occurs in combined fields (can be more than one!), put in cache
             for param in cmb_list:
                 # BUG: param has the list fa_id names!
+                #      we should only send the current name
+                #      but ideally also the other parameter settings?
                 gc += 1
                 cache_field_fa(pname, data_vector, param_cmb_list, geo)
 

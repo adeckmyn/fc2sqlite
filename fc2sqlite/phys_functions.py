@@ -32,7 +32,7 @@ def param_apply_function(param, station_list):
         v = param["data"][1]
         direction_to = np.degrees(np.arctan2(u, v))
         direction_from = (direction_to + 180) % 360
-        if param["geo"]["uvRelativeToGrid"] == 1:
+        if param["geo"]["rotate_wind"]:
         # FIXME: wind may need to be rotated first !!!
         #        also FA syntax!
             lat = np.array(station_list["lat"].tolist())
