@@ -8,6 +8,11 @@ import pandas
 import eccodes
 import numpy as np
 from pyproj import Proj
+from .phys_functions import combine_fields
+from .sqlite_tools import *
+from .interpolate import *
+from copy import deepcopy
+
 
 from .logger import logger
 
@@ -376,5 +381,244 @@ def match_keys(p1, p2):
         elif p1[k] != p2[k]:
             return False
     return True
+
+def parse_parameter_list_grib(param_list):
+    """Parse a (json) structure of required parameters.
+
+    Handle single vs combined fields, model levels etc.
+
+    Args:
+        param_list: the list pf paramers (from json file)
+
+    Returns:
+        param_id_list: the complete list of fields that should be decoded
+        param_combine: details for combined fields
+    """
+    # TODO: make it as type-agnostic as possible?
+    #       netcdf...
+    param_sgl_list = []
+    param_cmb_list = []
+    for param in param_list:
+        if isinstance(param["grib_id"], dict):
+            # a single field is decoded for this parameter
+            if "level" in param["grib_id"] and isinstance(
+                param["grib_id"]["level"], list
+            ):
+                # expand to multiple fields
+                for lev in param["grib_id"]["level"]:
+                    pid = deepcopy(param)
+                    pid["grib_id"]["level"] = str(lev)
+                    param_sgl_list.append(pid)
+            else:
+                pid = deepcopy(param)
+                # single field parameters are not cached for now
+                # so "data" entry is not needed
+                param_sgl_list.append(pid)
+
+        else:
+            # the parameter requires multiple fields
+            # so we will have to cache the data and calculate later
+            # for e.g. wind fields we must also cache grid and projection settings
+            nfields = len(param["grib_id"])
+            if "grib_id_common" not in param:
+                # the most simple combine case: no common keys
+                pid = deepcopy(param)
+                pid["data"] = [None] * nfields
+                pid["geo"] = None
+                param_cmb_list.append(pid)
+
+            elif "level" in param["grib_id_common"] and isinstance(
+                param["grib_id_common"]["level"], list
+            ):
+                # there is a common level key, so multiple entries
+                for lev in param["grib_id_common"]["level"]:
+                    pid = deepcopy(param)
+                    pid["grib_id_common"]["level"] = str(lev)
+                    for f in range(len(pid["grib_id"])):
+                        pid["grib_id"][f].update(pid["grib_id_common"])
+                    pid.pop("grib_id_common")
+                    pid["data"] = [None] * nfields
+                    pid["geo"] = None
+                    pid["level"] = lev
+                    param_cmb_list.append(pid)
+
+            else:
+                # there are common keys, but no level expansion
+                pid = deepcopy(param)
+                for f in range(len(pid["grib_id"])):
+                    pid["grib_id"][f].update(pid["grib_id_common"])
+                pid.pop("grib_id_common")
+                pid["data"] = [None] * nfields
+                pid["geo"] = None
+                param_cmb_list.append(pid)
+    return param_sgl_list, param_cmb_list
+
+def parse_grib_file(
+    infile,
+    param_list,
+    station_list,
+    sqlite_template,
+    weights=None,
+    model_name="TEST",
+):
+    """Read a GRIB2 file and extract all required data points to SQLite.
+
+    Args:
+      infile: input grib2 file
+      param_list: list of parameters or name of a json file
+      station_list: pandas table with all stations or name of a csv file
+      sqlite_template: template for sqlite output files
+      weights: interpolation weights (if None, they are calculated)
+      model_name: model name (string) used in the SQLite file name and data columns
+
+    Returns:
+        Total number of GRIB records and number of matching parameters found.
+    """
+
+    # split into "combined" and "direct" parameters
+    param_sgl_list, param_cmb_list = parse_parameter_list_grib(param_list)
+    logger.info(
+        "SQLITE: expecting %i single and %i combined parameters.",
+        len(param_sgl_list),
+        len(param_cmb_list),
+    )
+
+    fcdate = None
+    leadtime = None
+    gt = 0
+    gm = 0
+    gd = 0
+    gc = 0
+    error_occured = False
+
+    with open(infile, "rb") as gfile:
+        while True:
+            # loop over all grib records in the file
+            gid = eccodes.codes_grib_new_from_file(gfile)
+            if gid is None:
+                # We've reached the last grib record in the file
+                break
+            gt += 1
+            param = param_match(gid, param_sgl_list)
+            if param is not None:
+                direct = True
+                gd += 1
+                logger.debug("SQLITE: found parameter %s", param["harp_param"])
+            else:
+                # the record is not in our "direct" parameter list
+                param = param_match(gid, param_cmb_list)
+                if param is None:
+                    eccodes.codes_release(gid)
+                    continue
+                # the record is in the "combined" list
+                direct = False
+                logger.debug(
+                    "SQLITE: found combined parameter %s:%s",
+                    param["harp_param"],
+                    param["grib_id"],
+                )
+
+            # we have a matching parameter
+            gm += 1
+            # NOTE: actually, we only need to get fcdate & lead time once
+            #       and we could even consider those to be known
+            fcdate, leadtime = get_date_info(gid)
+            logger.debug(
+                "SQLITE: gt=%i gm=%i fcdate=%s, leadtime=%i, direct=%s",
+                gt,
+                gm,
+                fcdate.isoformat(),
+                leadtime,
+                direct,
+            )
+
+            if weights is None:
+                # We assume that station list and weights are the same for all GRIB fields
+                # so we only "train" once
+                # First reduce the station list to points inside the domain
+                nstation_orig = station_list.shape[0]
+                geo = get_geo_grib(gid)
+                station_list = points_restrict(geo, station_list)
+                if station_list.shape[0] == 0:
+                    # In this case, we can not extract any points
+                    logger.warning("SQLite: no stations inside model domain!")
+                    error_occured = True
+                    eccodes.codes_release(gid)
+                    break
+
+                logger.info(
+                    "SQLITE: selected %i stations inside domain from %i.",
+                    station_list.shape[0],
+                    nstation_orig,
+                )
+                # create a list of interpolation weights
+                logger.debug("SQLITE: training interpolation weights.")
+                weights = train_weights(station_list, geo, lsm=False)
+
+            # by default, we do bilinear interpolation
+            method = "linear" if "method" not in param or param['method']=="bilin" else param["method"]
+
+            # add columns to data table
+            field_data = get_grid_values(gid)
+            data_vector = interp_from_weights(field_data, weights, method)
+            #The following gives a seg fault further on:
+            #data_vector = epygram.formats.GRIB.GRIBmessage(source=('gribid', gid)).as_field().getvalue_ll(
+            #        lon=station_list["lon"],
+            #        lat=station_list["lat"],
+            #        interpolation=method)
+
+            # cache this data vector if necessary
+            # NOTE: a "direct" field may also be part of a combined field
+            #       so we can not be sure without checking explicitly.
+            # we may need to add some encoding information
+            # like projection & uvRelativeToGrid for wind
+            # so we pass gid along as well
+            cache_field(param, data_vector, param_cmb_list, geo)
+
+            # if this is a "direct" field, create a table and write to SQLite
+            if direct:
+                sqlite_file = sqlite_name(param, fcdate, model_name, sqlite_template)
+                data = create_table(
+                    data_vector,
+                    station_list,
+                    param,
+                    fcdate,
+                    leadtime,
+                    model_name + "_det",
+                )
+                write_to_sqlite(data, sqlite_file, param, model_name + "_det")
+
+            eccodes.codes_release(gid)
+
+    # at this point, all grib records have been parsed (or an error occured)
+    if error_occured:
+        logger.error("An error occured. Exiting.")
+        return gd, gc
+
+    # OK, we have parsed the whole file and written all "direct" parameters
+    # So now we still need to check all the "combined" ones
+    # NOTE: this should only be run if we found some parameters in the first loop
+    #       but checking whether the combined field is None is enough
+    logger.debug("SQLITE: checking cached combined fields")
+    for param in param_cmb_list:
+        data_vector = combine_fields(param, station_list)
+        # only write to SQLite if ALL components were found!
+        if data_vector is not None:
+            gc += 1
+            logger.debug("SQLITE: writing combined field")
+            sqlite_file = sqlite_name(param, fcdate, model_name, sqlite_template)
+            data = create_table(
+                data_vector, station_list, param, fcdate, leadtime, model_name
+            )
+            write_to_sqlite(data, sqlite_file, param, model_name)
+    logger.info(
+        "SQLITE: Total %i records. %i matching of which %i direct and %i combined.",
+        gt,
+        gm,
+        gd,
+        gc,
+    )
+    # Return: number of "direct" and "combined" parameters found
+    return gd, gc
 
 

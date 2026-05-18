@@ -1,19 +1,10 @@
 from .logger import logger
-from .base import (
-        read_station_list, read_param_list,
-        parse_fa_file, parse_grib_file,
-        get_file_type)
+from .base import parse_fc_file, basedir, defaults
 
 """Command line version."""
 import argparse
 from glob import glob
 import os
-# some defaults
-basedir = os.path.dirname(__file__) + "/data/"
-default_parameter_list = basedir + "param_list_default.json"
-default_station_list = basedir + "station_list_default.csv"
-default_sqlite_template = "{MODEL}/{YYYY}/{MM}/FCTABLE_{PP}_{YYYY}{MM}.sqlite"
-
 
 parser = argparse.ArgumentParser(prog="fc2sqlite")
 current_wdir = os.getcwd()
@@ -23,16 +14,16 @@ parser.add_argument("infile", metavar="/path/to/file(s)",
         nargs='+' )
 parser.add_argument('-p', metavar="param_file",
     help="parameter list file (json)",
-    default = default_parameter_list)
+    default = defaults['parameter_list'])
 parser.add_argument('-s', metavar="station_file",
     help="station list file (csv)",
-    default = default_station_list)
+    default = defaults['station_list'])
 parser.add_argument('-m', metavar="model_name",
     help="model name used in SQLite (usually <*>_det)",
-    default = "TEST_det")
+    default = defaults['model_name'])
 parser.add_argument('-t', metavar="output_template",
     help="template used for SQLite files",
-    default = default_sqlite_template)
+    default = defaults['sqlite_template'])
 parser.add_argument('-o', metavar="output_path",
     help="path used for SQLite files",
     default = current_wdir + "/FCTABLE")
@@ -89,18 +80,7 @@ for file_glob in infile:
         if not os.path.isfile(file_name):
             logger.warning(f"Input file not found: {file_name}")
             continue
-        ftype = get_file_type(file_name)
-        logger.info(f"File type: {ftype}")
-        if ftype == "GRIB":
-            gt, gi = parse_grib_file(
-                infile = file_name,
-                param_list = param_file,
-                station_list = station_file,
-                sqlite_template = sqlite_template,
-                model_name = model_name,
-                weights = None)
-        elif ftype == "FA":
-            gt, gi = parse_fa_file(
+        gd, gc = parse_fc_file(
                 infile = file_name,
                 param_list = param_file,
                 station_list = station_file,

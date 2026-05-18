@@ -20,6 +20,38 @@ eps = R_d / R_w
 # PHYSICS
 #####################################
 
+def combine_fields(param, station_list):
+    """Combine multiple decoded fields into one parameter.
+
+    We need lat/lon and proj4 values when calculating wind speed & direction.
+    Because we should correct for the local rotation of the axes.
+
+    Args:
+        param: full parameter descriptor
+        station_list: a pandas table with at least lon & lat columns
+
+    Returns:
+        a new data matrix that combines the input fields according to parameter descriptor
+    """
+    nfields = len(param["data"])
+    parname = param["harp_param"]
+    if "level" in param:
+        # NOTE: adding level to the name may sometimes lead to strange results
+        #       e.g. S10m10, but it's just for debug messages, so we don't care.
+        parname += str(param["level"])
+
+    if any(dd is None for dd in param["data"]):
+        # there are missing fields
+        # don't make this a "warning", it would show too often...
+        logger.info("COMBINE : missing data fields for parameter %s.", parname)
+        return None
+
+    logger.debug("COMBINING %i fields for %s", nfields, parname)
+
+    npoints = len(param["data"][0])
+    result = param_apply_function(param, station_list)
+    return result
+
 def param_apply_function(param, station_list):
     nfields = len(param["data"])
     parname = param["harp_param"]
@@ -57,13 +89,13 @@ def param_apply_function(param, station_list):
             result += param["data"][ff]
         return result
 
-    elif param['function'] == "Q_to_RH":
+    elif param['function'] == "PQT_to_RH":
         if nfields != 3:
             logger.error("ERROR: RH from Q needs exactly 3 components.")
         P = param["data"][0]
         Q = param["data"][1]
         T = param["data"][2]
-        return Q_to_RH(P, Q, T)
+        return PQT_to_RH(P, Q, T)
 
     elif param['function'] == "PQT_to_Td":
         if nfields != 3:
@@ -82,7 +114,7 @@ def param_apply_function(param, station_list):
         logger.error("Unknown function %s.", param['function'])
         return None
 
-def Q_to_RH(P, Q, T):
+def PQT_to_RH(P, Q, T):
     # Returns relative humidity (fraction, 0–1).
     # Inputs: pressure P (hPa), specific humidity Q (kg/kg), temperature T (K).
     # Uses Tetens formula for saturation vapor pressure (over water/ice).
@@ -91,13 +123,14 @@ def Q_to_RH(P, Q, T):
             6.1078 * np.exp((17.27 * T) / (T + 237.3)),
             6.1078 * np.exp((21.875 * T) / (T + 265.5)))
     RH = e / es
+    RH = np.clip(RH, 0.0, 1.0)
     return RH
 
 def PQT_to_Td(P, Q, T):
     # Returns dew point temperature Td (K).
     # Inputs: pressure p (hPa), specific humidity Q (kg/kg), temperature T (K).
     # Computes relative humidity first, then applies Clausius–Clapeyron approximation.
-    RH = Q_to_RH(P, Q, T)
+    RH = PQT_to_RH(P, Q, T)
     return RH_to_Td(RH, T)
 
 def TTd_to_RH(T, Td):
@@ -105,6 +138,7 @@ def TTd_to_RH(T, Td):
     # Inputs: temperature T (K), dew point temperature Td (K).
     # Computed using Clausius–Clapeyron relation assuming constant latent heat.
     RH = np.exp((h_i/R_w) * (1/T - 1/Td))
+    RH = np.clip(RH, 0.0, 1.0)
     return RH
 
 def PTTd_to_Q(P, T, Td):
@@ -127,10 +161,11 @@ def PTTd_to_Q(P, T, Td):
 
     return q
 
-def RH_to_Td(T, RH):
+def TRH_to_Td(T, RH):
     # Returns dew point temperature Td (K).
     # Inputs: temperature T (K), relative humidity RH (fraction, 0–1).
     # Uses Clausius–Clapeyron approximation (constant latent heat).
+    RH = np.clip(RH, a_min=0.01, a_max=1.0)
 
     Td = 1 / (1/T - (R_w/h_i) * np.log(RH))
 
