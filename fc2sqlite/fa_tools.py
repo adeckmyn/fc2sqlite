@@ -24,29 +24,29 @@ def get_proj4_fa(fafile):
     return proj4
 
 
-def fa_fix_level(fa_name, fa_level):
-    # expected fa_name: S???SOMETHING, P?????SOMETHING, H?????SOMETHING
-    lev_type = fa_name[0] # S, P, H ...
-    lev_len =  fa_name.rfind("?") - fa_name.find("?") + 1
+def fa_expand_levels(fa_names, fa_levels):
+    # both entries are expected to be lists or range
+    lev_type = fa_names[0][0]
+    lev_len =  fa_names.rfind("?") - fa_names.find("?") + 1
     if lev_type in ["P"]:
-        fa_level = (fa_level * 100) % 100000
-    result = fa_name.replace("?"*lev_len, f"{fa_level:0{lev_len}}")
+        fa_levels = [ (lev * 100) % 100000 for lev in fa_levels ]
+    result = [ fanam.replace("?"*lev_len, f"{lev:0{lev_len}}")
+            for lev in fa_levels
+            for fanam in fa_names
+            ]
     return(result)
-
-def fa_expand_3d_names(fa_names, nlev):
-    fixed_fields = [ x for x in fa_names if x.find("?") == -1 ]
-    level_fields = [ x for x in fa_names if x.find("?") > -1 ]
-    result = fixed_fields + [ fa_fix_level(x, l) for l in range(1,nlev+1) for x in level_fields ]
-    return result
 
 def points_restrict_fa(fafile, plist):
     # Keep only stations inside the resource domain
+    # FIXME: it appears that "CI" zone may be problematic
+    #        some points are labelled "inside" but can not
+    #        be interpolated to.
     is_in = fafile.geometry.point_is_inside_domain_ll(
             lon = plist["lon"],
             lat = plist["lat"],
-            subzone = "CI"
+            subzone = "C" # "CI" may give stations too close to border?
             )
-    p1 = plist[ is_in ].copy()
+    p1 = plist[ is_in ].copy().reset_index(drop=True)
     return(p1)
 
 def get_geo_fa(fafile):
@@ -78,6 +78,7 @@ def get_geo_fa(fafile):
         # FIXME
         "rotate_wind":True,
         "wrap_x": False,
+        "grid_levels": fafile.geometry.vcoordinate.grid['gridlevels'],
     }
 #    if gridtype in ["regular_ll", "rotated_ll"]:
 #        result["dx"] = gg["iDirectionIncrementInDegrees"]
@@ -89,13 +90,15 @@ def get_geo_fa(fafile):
 
     return result
 
-def parse_parameter_list_fa(param_list, nlev):
+def parse_parameter_list_fa(param_list, nlev, nstat):
     """Parse a (json) structure of required parameters.
 
     Handle single vs combined fields, model levels etc.
 
     Args:
         param_list: the list pf paramers (from json file)
+        nlev: the number of model levels (used in vertical interpolations)
+        nstat: number of stations
 
     Returns:
         param_id_list: the complete list of fields that should be decoded
@@ -107,14 +110,26 @@ def parse_parameter_list_fa(param_list, nlev):
     param_cmb_list = []
     # TODO: restrict to allowed keys for FA: harp_param, method, fa_id, level, function, unit
     for param in param_list:
-        if isinstance(param["fa_id"], str):
+        if "hybrid_to_p" in param:
+            # vertical interpolations, so we must get all hybrid levels
+            # also, this data must be in np.array structures per field
+            # NOTE: fa_id is always a list (because of SURFPRESSION)
+            #       but fa_id_ml *can* be a single string, e.g. temperature
+            param['fa_id_ml'] = param['fa_id'] # may be useful later...
+            param['fa_id'] = fa_expand_levels(param['fa_id'], range(1, nlev + 1)) + ["SURFPRESSION"]
+
+        if isinstance(param["fa_id"], str) or len(param["fa_id"] == 1):
             # a single field is decoded for this parameter
             # but possibly multiple levels
             if "level" in param and isinstance(param["level"], list):
+                # FIXME: how should this be structured?
+                #        SINGLE field at MULTIPLE LEVELS
                 # expand to multiple fields
+                # hybrid_to_p should NOT have a level key !!!
                 if param["fa_id"][0] == "P":
                     param['level_name'] = "p"
                 elif param["fa_id"][0] == "S":
+                    #NOTE: "SURF" is OK, because then "level" should be undefined
                     param['level_name'] = "ml"
                 elif param["fa_id"][0] == "H":
                     param['level_name'] = "z"
@@ -122,11 +137,14 @@ def parse_parameter_list_fa(param_list, nlev):
                     # NOTE: only p, z, ml are important
                     param['level_name'] = None
 
-                for lev in param["level"]:
-                    pid = deepcopy(param)
-                    pid["fa_id"] = fa_fix_level(param["fa_id"], lev)
-                    param_sgl_list.append(pid)
+                pid = deepcopy(param)
+                pid['data'] = np.full((1, nlev, nstat), np.nan)
+                #for lev in param["level"]:
+                #    pid = deepcopy(param)
+                #    pid["fa_id"] = fa_fix_level(param["fa_id"], lev)
+                #    param_sgl_list.append(pid)
             else:
+                # SINGLE FIELD and SINGLE level
                 if "level" not in param:
                     param['level'] = None
                 if "level_name" not in param:
@@ -139,33 +157,43 @@ def parse_parameter_list_fa(param_list, nlev):
             # the parameter requires multiple fields
             # so we will have to cache the data and calculate later
             # for e.g. wind fields we must also cache grid and projection settings
-            nfields = len(param["fa_id"])
-            if "level" not in param:
+            if "hybrid_to_p" in param:
+                # Special case: all the "levels" are to be combined and interpolated vertically
+                # So we need to reserve enough cache space for all model levels in an np.array
+                # We already expanded (to add surf pressure etc)
+                #param['fa_id'] = fa_expand_3d_names( param['fa_id'], nlev)
+                param["level_name"] = "p"
+                pid = deepcopy(param)
+                nfields = len(param['fa_id_ml'])
+                # NOTE: we put all fields in a single 3d np.array, for faster interpolations
+                #       the field order can be seen from first level.
+                pid['surf_pressure'] = None
+                pid['data'] = np.full((nfields, nlev, nstat), np.nan)
+                pid["geo"] = None
+                param_cmb_list.append(pid)
+
+            elif "level" not in param:
+                nfields = len(param["fa_id"])
                 # the most simple combine case: no multiple levels
                 param['level'] = None
                 if "level_name" not in param:
                     param['level_name'] = None
                 pid = deepcopy(param)
-                pid["data"] = [None] * nfields
-                pid["geo"] = None
-                param_cmb_list.append(pid)
-
-            elif param['function'] == "hybrid_to_p":
-                # Special case: all the "levels" are to be combined and interpolated vertically
-                # TODO: something better than caching all hybrid levels for every pressure...
-                # FIXME: we need to know the number of model levels!
-                param['fa_id'] = fa_expand_3d_names( param['fa_id'], nlev)
-                nfields = len(param['fa_id'])
-                pid = deepcopy(param)
-                pid["data"] = [None] * nfields
+                # NOTE: we keep the "level" dimension, even if it is only 1
+                #       for consistency through all possibilities
+                pid["data"] = np.full((nfields, 1, nstat), np.nan)
                 pid["geo"] = None
                 param_cmb_list.append(pid)
 
             else:
-                # there is a common level key, so multiple entries
+                # There is no vertical interpolation
+                # We expect to find the vertical fields directly.
+                # there is a common level key, so multiple entries possible.
                 # NOTE: to guess the level type (pressure, ...)
                 #       we should look at the field names
                 #       We look for the first field name with "?" in it
+                # TODO: would an np.array be better than a list of vectors?
+                #       advantage would be that it is mode similar to the vertical interpolation case
                 lev_field = [ x for x  in param['fa_id'] if "?" in x ][0]
                 if lev_field[0] == "P":
                     param['level_name'] = "p"
@@ -180,18 +208,10 @@ def parse_parameter_list_fa(param_list, nlev):
                 if not isinstance(param["level"], list):
                     param["level"] = [ param["level"] ]
 
-                for lev in param["level"]:
-                    # FIXME: this fails if the field list also includes non-level fields like pressure
-                    # basically, this is not a good approach for 3D fields (vertical interpolation)
-                    pid = deepcopy(param)
-                    for f in range(nfields):
-                        pid["fa_id"][f] = fa_fix_level(pid["fa_id"][f], lev)
-                    pid["data"] = [None] * nfields
-                    pid["geo"] = None
-                    pid["level"] = lev
-                    logger.debug("COMBI LEVEL")
-                    logger.debug(pid)
-                    param_cmb_list.append(pid)
+                pid = deepcopy(param)
+                pid["data"] = np.full((nfields, len(param['level']), nstat), np.nan)
+                pid["fa_id"] = fa_fix_level(pid["fa_id"][f], param['level'])
+
 
     return param_sgl_list, param_cmb_list
 
@@ -210,26 +230,30 @@ def cache_field_fa(pname, data, param_cmb_list, geo):
       so may be matched twice.
     """
     count = 0
-    fid = 'fa_id'
     for cmb in param_cmb_list:
-        nfields = len(cmb[fid])
-        for ff in range(nfields):
-            if cmb[fid][ff] == pname:
-                logger.debug("Caching output for %s", cmb["harp_param"])
-                cmb["data"][ff] = np.array(data)
-                if cmb["geo"] is None:
-                    cmb['geo'] = geo
-                # FIXME: we assume the unit is the same for all constituents and result
-                #        this is NOT the case for e.g. wind direction
-                #        probably should be fixed in the final combination function
-                # FIXME: these have to be done when creating the cache!
-                #cmb["units"] = param["units"]
-                #cmb["level"] = param["level"]
-                #cmb["level_name"] = param["level_name"]
-                #if cmb["geo"] is None:
-                #    cmb["geo"] = geo
-                count += 1
-                continue
+        if pname not in cmb['fa_id']:
+            continue
+        count += 1
+        logger.debug("Caching output for %s: %s", cmb["harp_param"], pname)
+        if "hybrid_to_p" in cmb and pname == "SURFPRESSION":
+            cmb['surf_pressure'] = np.array(data)
+        elif "level" in cmb or "hybrid_to_p" in cmb:
+            # we need to find the "field" and "level" dimension of data
+            i = cmb['fa_id'].index(pname)
+            nf = cmb['data'].shape[0]
+            nl = cmb['data'].shape[1] # = len(param['level'])
+            i_l = i // nf
+            i_f = i % nf
+            logger.debug("Dimensions: i_f=%i, i_l=%i", i_f, i_l)
+            cmb['data'][i_f, i_l, :] = np.array(data)
+        else:
+            # no level given, just a few fields that will be combined in a function
+            # but the data structure still has 3 dimensions
+            i_f = cmb['fa_id'].index(pname)
+            cmb['data'][i_f, 0, :] = np.array(data)
+
+        if cmb["geo"] is None:
+            cmb['geo'] = geo
     logger.debug("Found %i matching combined parameters.", count)
     return count
 
@@ -265,9 +289,25 @@ def parse_fa_file(
     with epygram.open(infile, "r") as fafile:
         # split into "combined" and "direct" parameters
         # FIXME: I need to open the FA file before parsing the parameters,
-        #        because 3d interpolation needs knowledge of NLEV before building cache.
+        #        because 3d interpolation needs knowledge of NLEV, NSTAT before building cache.
+        nstation_orig = station_list.shape[0]
+        logger.info("SQLITE: original number of stations in list: %i", nstation_orig)
+        station_list = points_restrict_fa(fafile, station_list)
+        nstation_select = station_list.shape[0]
+        if station_list.shape[0] == 0:
+            # In this case, we can not extract any points
+            logger.warning("SQLite: no stations inside model domain!")
+            error_occured = True
+            #fafile.close()
+            return(gd, gc)
+        logger.info(
+                    "SQLITE: selected %i stations inside domain from %i.",
+                    station_list.shape[0],
+                    nstation_orig,
+                )
+
         nlev = len(fafile.geometry.vcoordinate.levels)
-        param_sgl_list, param_cmb_list = parse_parameter_list_fa(param_list, nlev)
+        param_sgl_list, param_cmb_list = parse_parameter_list_fa(param_list, nlev, nstation_select)
         logger.info(
             "SQLITE: expecting %i single and %i combined parameters.",
             len(param_sgl_list),
@@ -283,21 +323,6 @@ def parse_fa_file(
 
         logger.debug("fcdate = %s \n leadtime = %s", fcdate, leadtime)
         logger.debug("geo = %s", geo)
-
-        nstation_orig = station_list.shape[0]
-        station_list = points_restrict_fa(fafile, station_list)
-        nstation_select = station_list.shape[0]
-        if station_list.shape[0] == 0:
-            # In this case, we can not extract any points
-            logger.warning("SQLite: no stations inside model domain!")
-            error_occured = True
-            #fafile.close()
-            return(gd, gc)
-        logger.info(
-                    "SQLITE: selected %i stations inside domain from %i.",
-                    station_list.shape[0],
-                    nstation_orig,
-                )
 
     # TODO: actually should loop over the union of single fields and combined
         param_sgl_names = set([ p['fa_id'] for p in param_sgl_list])
@@ -384,6 +409,27 @@ def parse_fa_file(
                 cache_field_fa(pname, data_vector, param_cmb_list, geo)
 
     for param in param_cmb_list:
+        if "hybrid_to_p" in param:
+            # TODO: check that there is no missing data?
+            #       Or just trust that numpy will take care of it.
+            grid_levels = param["geo"]["grid_levels"]
+            A = [level[1]['Ai'] for level in grid_levels][1:]
+            B = [level[1]['Bi'] for level in grid_levels][1:]
+            target_p = param["hybrid_to_p"]
+
+            surfP = param["surf_pressure"]
+            if (surfP[0] < 50) surfP = np.exp(surfP)
+            vertP = hybridP2masspressure(A, B, surfP, 'arithmetic') / 100
+            # an array with the pressures for all ML's at every point
+
+            # dimensions are [ field, level, location ]
+            ML_data = param["data"][:,:,:]
+            PL_data = log_interpolation(target_p, vertP, ML_data)
+
+            param["level"] = target_p
+            param["level_name"] = "p"
+            param["data"] = PL_data
+
         data_vector = combine_fields(param, station_list)
         # only write to SQLite if ALL components were found!
         if data_vector is None:

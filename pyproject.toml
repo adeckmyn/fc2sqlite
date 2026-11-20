@@ -3,7 +3,7 @@ name = "fc2sqlite"
 version = "0.0.1"
 description = "Extract/interpolate GRIB and FA data to SQLite for verification in harp."
 authors = ["Alex Deckmyn <alex.deckmyn@meteo.be>",
-           "Jure Potocnik ",
+           "Jure Potocnik <potozniki.jure@gmail.com> ",
           ]
 readme = "README.md"
 

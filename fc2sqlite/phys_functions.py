@@ -1,14 +1,11 @@
 import numpy as np
-#from epygram.geometries.VGeometry import hybridP2pressure, hybridP2altitude
+from epygram.geometries.VGeometry import hybridP2masspressure
 
 from .logger import logger
 
 #####################################
 # UNITS AND CONSTANTS
 #####################################
-
-units = {'p':'hPa', 'Pmsl':'hPa', 'Z':'m^2 / s^2', 'GeoP':'m^2 / s^2', 'T':'K', 'T2m' : 'K', 'Tmin' : 'K', 'Tmax' : 'K', 'Td':'K', 'Td2m':'K', 'Q':'kg / kg', 'Q2m':'kg / kg', 'RH':'percent','RH2m':'percent', 'S':'m / s', 'D':'degrees',
-              'S10m':'m / s', 'D10m':'degrees', 'Pcp' : 'kg / m^2', 'Elev' : 'm', 'Grad' : 'J / m^2', 'CCtot' : 'percent', 'Gmax' : 'm / s'} 
 
 R_w = 461.52
 R_d = 287
@@ -131,7 +128,7 @@ def PQT_to_Td(P, Q, T):
     # Inputs: pressure p (hPa), specific humidity Q (kg/kg), temperature T (K).
     # Computes relative humidity first, then applies Clausius–Clapeyron approximation.
     RH = PQT_to_RH(P, Q, T)
-    return RH_to_Td(RH, T)
+    return TRH_to_Td(T, RH)
 
 def TTd_to_RH(T, Td):
     # Returns relative humidity (fraction, 0–1).
@@ -197,7 +194,9 @@ def circular_interpolation(target_pressure, pressure, angles):
     return np.degrees(angles_interpolated) % 360
 
 def log_interpolation(x_target, x, y): 
-    
+    # TODO: let y  have multiple dimensions (field, level, station)
+    #       x has pressures at all model levels for every station (level, station)
+    #       while x_target has pressure levels as a single vector
     # Returns interpolated values y at x_target.
     # Performs linear interpolation in log(x) (i.e., y is linear in log(x)).
     # Requires x > 0 and x_target > 0.
@@ -246,5 +245,30 @@ def rotate_wind(lon, lat, p4):
         mapfactor = np.ones(len(lat))
 
     return angle, mapfactor
+
+def hybrid_to_p(param):
+    grid_levels = param["geo"]["grid_levels"]
+    target_p = param["hybrid_to_p"]
+
+    A = [level[1]['Ai'] for level in grid_levels][1:]
+    B = [level[1]['Bi'] for level in grid_levels][1:]
+
+    surfP = param["data"][0]
+    # is it log-pressure?
+    if np.max(surfP) < 100 surfP = np.exp(surfP)
+    # interpolate all separate fields
+    # use this for all following variables!
+    vertP = hybridP2masspressure(A, B, surfP, 'arithmetic') / 100
+    # surfP is an array with local pressure at all ml's
+    # first co-ordinate is ml, second is station
+    
+    for ff in param["data"][1:]:
+        #paramdata = param["data"][:,1,:]
+
+    result = log_interpolation(target_p, vertP, paramdata)
+
+    param["level"] = target_p
+
+    return result
 
 

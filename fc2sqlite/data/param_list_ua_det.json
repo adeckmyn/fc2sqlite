@@ -1,25 +1,35 @@
 [
+    {
+    "macros":{
+      "$p_levels":[50,100,150,200,250,300,400,500,700,850,925,1000],
+      "$precip": [
+      {
+        "parameterNumber": "55"
+      },
+      {
+        "parameterNumber": "56"
+      },
+      {
+        "parameterNumber": "76"
+      },
+      {
+        "parameterNumber": "77"
+      }
+      ],
+      "$PDT_inst":"0",
+      "$PDT_proc":"8"
+    }
+  },
+
+
   {
     "harp_param": "T",
     "method": "bilin",
     "grib_id": {
       "shortName": "t",
-      "productDefinitionTemplateNumber": "0",
+      "productDefinitionTemplateNumber": "$PDT_inst",
       "typeOfLevel": "isobaricInhPa",
-      "level": [
-        50,
-        100,
-        150,
-        200,
-        250,
-        300,
-        400,
-        500,
-        700,
-        850,
-        925,
-        1000
-      ]
+      "level": "$p_levels"
     }
   },
   {
@@ -27,22 +37,9 @@
     "method": "bilin",
     "grib_id": {
       "shortName": "r",
-      "productDefinitionTemplateNumber": "0",
+      "productDefinitionTemplateNumber": "$PDT_inst",
       "typeOfLevel": "isobaricInhPa",
-      "level": [
-        50,
-        100,
-        150,
-        200,
-        250,
-        300,
-        400,
-        500,
-        700,
-        850,
-        925,
-        1000
-      ]
+      "level": "$p_levels"
     }
   },
   {
@@ -50,22 +47,9 @@
     "method": "bilin",
     "grib_id": {
       "shortName": "q",
-      "productDefinitionTemplateNumber": "0",
+      "productDefinitionTemplateNumber": "$PDT_inst",
       "typeOfLevel": "isobaricInhPa",
-      "level": [
-        50,
-        100,
-        150,
-        200,
-        250,
-        300,
-        400,
-        500,
-        700,
-        850,
-        925,
-        1000
-      ]
+      "level": "$p_levels"
     }
   },
   {
@@ -73,22 +57,9 @@
     "method": "bilin",
     "grib_id": {
       "shortName": "z",
-      "productDefinitionTemplateNumber": "0",
+      "productDefinitionTemplateNumber": "$PDT_inst",
       "typeOfLevel": "isobaricInhPa",
-      "level": [
-        50,
-        100,
-        150,
-        200,
-        250,
-        300,
-        400,
-        500,
-        700,
-        850,
-        925,
-        1000
-      ]
+      "level": "$p_levels"
     }
   },
   {
@@ -103,22 +74,9 @@
       }
     ],
     "common": {
-      "productDefinitionTemplateNumber": "0",
+      "productDefinitionTemplateNumber": "$PDT_inst",
       "typeOfLevel": "isobaricInhPa",
-      "level": [
-        50,
-        100,
-        150,
-        200,
-        250,
-        300,
-        400,
-        500,
-        700,
-        850,
-        925,
-        1000
-      ]
+      "level": "$p_levels"
     },
     "function": "vector_norm"
   },
@@ -134,22 +92,9 @@
       }
     ],
     "common": {
-      "productDefinitionTemplateNumber": "0",
+      "productDefinitionTemplateNumber": "$PDT_inst",
       "typeOfLevel": "isobaricInhPa",
-      "level": [
-        50,
-        100,
-        150,
-        200,
-        250,
-        300,
-        400,
-        500,
-        700,
-        850,
-        925,
-        1000
-      ]
+      "level": "$p_levels"
     },
     "function": "vector_angle"
   }

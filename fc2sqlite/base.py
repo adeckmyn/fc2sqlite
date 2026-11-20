@@ -53,7 +53,7 @@ def get_file_type(filename):
     return(None)
 
 
-def read_param_list(param_file = None):
+def read_param_list(param_file = None, macros = {}):
     """Read a parameter file (json).
 
     Args:
@@ -75,18 +75,31 @@ def read_param_list(param_file = None):
     except OSError:
         logger.error("Can not read parameter file %s", param_file)
         raise
-    
+
+    # MACRO substitutions
+
     if "macros" in parameter_list[0]:
-        # TODO: this is concept code, I'm sure it can be improved.
         logger.info("Resolving macros in parameter list.")
-        macros = parameter_list.pop(0)['macros']
-        for param in parameter_list:
-            for mac in macros.keys():
-                for key in param.keys():
-                    if param[key] == mac:
-                        param[key] = macros[mac]
+        macros_conf = parameter_list.pop(0)['macros']
+    else:
+        macros_conf = {}
+    # macros defined via command line get preference
+    macros = { **macros_conf, **macros)
+
+    if macros:
+        parameter_list = substitute_macros(parameter_list, macros)
+
     return parameter_list
 
+
+def substitute_macros(indict, macros)
+    for key in indict.keys():
+        if isinstance(indict[key], "dict"):
+            indict[key] = substitute_macros(indict[key], macros)
+        else:
+            if indict[key] in macros:
+                indict[key] = macros[indict[key]]
+    return indict
 
 def read_station_list(station_file = None):
     """Read a station file (csv).
@@ -188,6 +201,8 @@ def parse_fc_file(infile,
         gd, gc = parse_netcdf_file(infile, param_list, station_list, sqlite_template, model_name, weights)
     else:
         logger.error("Unknown file type %s", file_type)
+        gd = gc = 0
+    return gd, gc
 
 
 
